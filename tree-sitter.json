@@ -1,0 +1,33 @@
+{
+  "grammars": [
+    {
+      "name": "opendylan",
+      "camelcase": "OpenDylan",
+      "scope": "source.opendylan",
+      "path": ".",
+      "file-types": null,
+      "injection-regex": "^opendylan$"
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "GPLv3",
+    "description": "A tree-sitter parser for OpenDylan",
+    "authors": [
+      {
+        "name": "Stefan Maaßen"
+      }
+    ],
+    "links": {
+      "repository": "https://github.com/indika-dev/tree-sitter-opendylan"
+    }
+  },
+  "bindings": {
+    "c": true,
+    "go": true,
+    "node": true,
+    "python": true,
+    "rust": true,
+    "swift": true
+  }
+}

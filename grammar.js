@@ -22,16 +22,55 @@ module.exports = grammar({
     /**
      * Program Structure
      */
-    source_file: ($) => seq($.definition, $.local_delaration, $.expression),
+    source_file: ($) => seq($.definition, $.local_declaration, $._expression),
     doc_comment: (_) => token(seq("///", /.*/)),
     line_comment: (_) => token(seq("//", /.*/)),
     definition: ($) =>
       choice($.definition_macro_call, $.define_macro, $.parsed_definition),
 
     /**
+     * Fragments
+     */
+    body_fragment: ($) =>
+      choice(
+        "non-statement-body-fragment",
+        "statement non-statement-body-fragmentopt",
+      ),
+    list_fragment: ($) =>
+      choice(
+        "non-statement-list-fragment",
+        "statement non-statement-list-fragmentopt",
+      ),
+
+    /**
      * Definitions
      */
     define_macro: ($) => seq("define", "macro", $.macro_definition),
+    definition_macro_call: ($) =>
+      choice(
+        seq(
+          "define",
+          optional($.modifiers),
+          $.define_body_word,
+          optional($.body_fragment),
+          $.definition_tail,
+        ),
+        seq(
+          "define",
+          optional($.modifiers),
+          $.define_list_word,
+          optional($.list_fragment),
+        ),
+      ),
+    define_body_word: (_) => choice("macro", "function"),
+    define_list_word: (_) => choice("list"),
+
+    definition_tail: ($) =>
+      choice(
+        "end",
+        seq("end", $.macro_name),
+        seq("end", "define-body-word", $.macro_name),
+      ),
 
     /**
      * Local Declarations
@@ -45,21 +84,22 @@ module.exports = grammar({
         $.parsed_local_declaration,
       ),
 
-    condition: ($) =>
-      choice($.type, seq("(", $.type, $.comma_property_list, ")")),
+    condition: ($) => choice($.type, seq("(", $.type, $.property_list, ")")),
 
-    handler: ($) => $.expression,
+    handler: ($) => $._expression,
 
     local_methods: ($) => seq(optional($.method), $.method_definition),
 
     bindings: ($) =>
       choice(
-        seq($.variable, "=", $.expression),
-        seq("(", $.variable_list, ")", "=", $.expression),
+        seq($.variable, "=", $._expression),
+        seq("(", $.variable_list, ")", "=", $._expression),
       ),
 
     variable_list: ($) =>
       repeat(seq($.variable_name, optional(seq("::", $.type)), optional(","))),
+
+    property_list: ($) => repeat(seq($.property_name_name, optional(","))),
 
     type: ($) => $.operand,
     /**
@@ -114,6 +154,7 @@ module.exports = grammar({
     definition_head: ($) => seq($.modifier_pattern),
 
     modifier_pattern: ($) => seq($.modifier),
+    modifiers: ($) => repeat($.modifier),
 
     /**
      * Patterns
@@ -239,7 +280,7 @@ module.exports = grammar({
       choice(
         $.literal,
         $.variable_name,
-        seq("(", $.expression, ")"),
+        seq("(", $._expression, ")"),
         $.function_macro_call,
         $.statement,
         $.parsed_function_call,
@@ -262,8 +303,32 @@ module.exports = grammar({
         $.parsed_vector_constant,
       ),
 
-    string_literal: ($) => $.string,
+    type: (_) => seq(optional("<"), $.identifier, optional(">")),
+    modifier: (_) => choice("sealed", "inline", "not-inline"),
+    string_literal: (_) => /[a-z]+/,
+    character_literal: (_) => /[a-z\-$\*]/,
+    variable_name: ($) => $.identifier,
+    property_name: ($) => $.identifier,
+    macro_name: ($) => $.identifier,
+    identifier: ($) => /[a-z\-$\*]+/,
+
+    number: (_) => /\d+/,
 
     constants: ($) => repeat(seq(choice($.literal, $.symbol), optional(","))),
+
+    /**
+     * Parsed Fragments
+     */
+    parsed_definition: (_) => /[a-z\-$\*]+/,
+
+    parsed_local_declaration: (_) => /[a-z\-$\*]+/,
+
+    parsed_function_call: (_) => /[a-z\-$\*]+/,
+
+    parsed_macro_call: (_) => /[a-z\-$\*]+/,
+
+    parsed_list_constant: (_) => /[a-z\-$\*]+/,
+
+    parsed_vector_constant: (_) => /[a-z\-$\*]+/,
   },
 });

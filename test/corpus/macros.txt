@@ -1,0 +1,18 @@
+==================
+Macro definition
+==================
+
+define macro iff
+    { iff(?test:expression, ?true:expression, ?false:expression) }
+ => { if (?test) ?true else ?false end }
+end;
+
+---
+
+(source_file
+  (function_definition
+    (identifier)
+    (parameter_list)
+    (primitive_type)
+    (block
+      (return_statement (number)))))

@@ -1,7 +1,7 @@
 /**
  * @file Treesitter parser for OpenDylan
  * @author Stefan Maaßen
- * @license MIT
+ * @license GPLv3
  */
 
 /// <reference types="tree-sitter-cli/dsl" />

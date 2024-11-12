@@ -96,12 +96,33 @@ module.exports = grammar({
         seq("(", $.variable_list, ")", "=", $._expression),
       ),
 
-    variable_list: ($) =>
-      repeat(seq($.variable_name, optional(seq("::", $.type)), optional(","))),
+    variable_list: ($) => repeat(seq($.variable, optional(","))),
 
-    property_list: ($) => repeat(seq($.property_name_name, optional(","))),
+    property_list: ($) => repeat(seq($.property_name, optional(","))),
 
     type: ($) => $.operand,
+
+    variable: ($) =>
+      choice($.variable_name, seq($.variable_name, "::", $.type)),
+
+    /**
+     * Methods
+     */
+
+    method_definition: ($) =>
+      seq(
+        $.variable_name,
+        $.parameter_list,
+        optional($.body),
+        "end",
+        optional(seq("method", $.variable_name)),
+      ),
+
+    parameter_list: ($) => repeat(seq($.parameter_name, optional(","))),
+
+    required_parameter: ($) =>
+      choice($.variable, seq($.variable_name, "==", $.expression)),
+
     /**
      * Macro Definitions
      */
@@ -309,6 +330,7 @@ module.exports = grammar({
     character_literal: (_) => /[a-z\-$\*]/,
     variable_name: ($) => $.identifier,
     property_name: ($) => $.identifier,
+    parameter_name: ($) => $.identifier,
     macro_name: ($) => $.identifier,
     identifier: ($) => /[a-z\-$\*]+/,
 

@@ -27,6 +27,7 @@ module.exports = grammar({
     line_comment: (_) => token(seq("//", /.*/)),
     definition: ($) =>
       choice($.definition_macro_call, $.define_macro, $.parsed_definition),
+    body: ($) => seq($.definition, $.local_declaration, $._expression),
 
     /**
      * Fragments
@@ -45,6 +46,12 @@ module.exports = grammar({
     /**
      * Definitions
      */
+    definition: ($) =>
+      choice(
+        $.definition_macro_call,
+        seq("define", "macro", $.macro_definition),
+        $.parsed_definition,
+      ),
     define_macro: ($) => seq("define", "macro", $.macro_definition),
     definition_macro_call: ($) =>
       choice(
@@ -88,7 +95,7 @@ module.exports = grammar({
 
     handler: ($) => $._expression,
 
-    local_methods: ($) => seq(optional($.method), $.method_definition),
+    local_methods: ($) => seq("method", $.method_definition),
 
     bindings: ($) =>
       choice(
@@ -121,7 +128,7 @@ module.exports = grammar({
     parameter_list: ($) => repeat(seq($.parameter_name, optional(","))),
 
     required_parameter: ($) =>
-      choice($.variable, seq($.variable_name, "==", $.expression)),
+      choice($.variable, seq($.variable_name, "==", $._expression)),
 
     /**
      * Macro Definitions
@@ -137,11 +144,11 @@ module.exports = grammar({
       ),
 
     main_rule_set: ($) =>
-      seq(
-        $.body_style_definition_rule,
-        $.list_style_definition_rule,
-        $.statement_rule,
-        $.function_rule,
+      choice(
+        repeat($.body_style_definition_rule),
+        repeat($.list_style_definition_rule),
+        repeat($.statement_rule),
+        repeat($.function_rule),
       ),
 
     body_style_definition_rule: ($) =>
@@ -169,6 +176,21 @@ module.exports = grammar({
         "=>",
         $.rhs,
       ),
+
+    statement_rule: ($) =>
+      seq(
+        "{",
+        $.macro_name,
+        optional($.pattern),
+        optional(";"),
+        "end",
+        "}",
+        "=>",
+        $.rhs,
+      ),
+
+    function_rule: ($) =>
+      seq("{", $.macro_name, "(", optional($.pattern), ")", "}", "=>", $.rhs),
 
     rhs: ($) => seq("{", optional($.template), "}", ";"),
 
@@ -234,6 +256,17 @@ module.exports = grammar({
     name_suffix: ($) => seq("##", $.string),
 
     name_string_or_symbol: ($) => choice($.name, $.string, $.symbol),
+
+    /**
+     * Auxiliary Rule Sets
+     */
+    aux_rule_sets: ($) => repeat($aux - rule - set),
+
+    aux_rule_set: ($) => seq($.symbol, $.aux_rules),
+
+    aux_rules: ($) => repeat($.aux_rule),
+
+    aux_rule: ($) => seq("{", optional($.pattern), "}", "=>", $.rhs),
 
     /**
      * taken from zig grammar
@@ -324,7 +357,7 @@ module.exports = grammar({
         $.parsed_vector_constant,
       ),
 
-    type: (_) => seq(optional("<"), $.identifier, optional(">")),
+    type: ($) => seq(optional("<"), $.identifier, optional(">")),
     modifier: (_) => choice("sealed", "inline", "not-inline"),
     string_literal: (_) => /[a-z]+/,
     character_literal: (_) => /[a-z\-$\*]/,

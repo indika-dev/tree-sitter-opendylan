@@ -22,12 +22,19 @@ module.exports = grammar({
     /**
      * Program Structure
      */
-    source_file: ($) => seq($.definition, $.local_declaration, $._expression),
+    source_file: ($) =>
+      optional(
+        repeat(
+          seq(choice($.definition, $.local_declaration, $._expression), ";"),
+        ),
+      ),
     doc_comment: (_) => token(seq("///", /.*/)),
     line_comment: (_) => token(seq("//", /.*/)),
     definition: ($) =>
       choice($.definition_macro_call, $.define_macro, $.parsed_definition),
-    body: ($) => seq($.definition, $.local_declaration, $._expression),
+    body: ($) => seq(";", "/"),
+    constituents: ($) =>
+      choice($.definition, $.local_declaration, $._expression, ";"),
 
     /**
      * Fragments
@@ -70,7 +77,7 @@ module.exports = grammar({
         ),
       ),
     define_body_word: (_) => choice("macro", "function"),
-    define_list_word: (_) => choice("list"),
+    define_list_word: (_) => choice("constant", "variable", "domain"),
 
     definition_tail: ($) =>
       choice(
@@ -111,6 +118,24 @@ module.exports = grammar({
 
     variable: ($) =>
       choice($.variable_name, seq($.variable_name, "::", $.type)),
+    /**
+     * Statements
+     */
+    statement: ($) =>
+      seq($.begin_word, optional($.body_fragment), $.end_clause),
+
+    end_clause: ($) => seq("end", optional($.begin_word)),
+
+    case_body: ($) => seq($.cases, optional(";")),
+
+    cases: ($) => seq($.case_label, $.constituents, ";"),
+
+    case_label: ($) =>
+      choice(
+        seq($.expressions, "=>"),
+        seq("(", $._expression, ",", $.expressions, ")", "=>"),
+        seq("otherwise", optional("=>")),
+      ),
 
     /**
      * Methods
@@ -155,7 +180,7 @@ module.exports = grammar({
       seq(
         "{",
         "define",
-        $.definition_headopt,
+        optional($.definition_head),
         $.macro_name,
         optional($.pattern),
         optional(";"),
@@ -169,7 +194,7 @@ module.exports = grammar({
       seq(
         "{",
         "define",
-        $.definition_headopt,
+        optional($.definition_head),
         $.macro_name,
         optional($.pattern),
         "}",
@@ -202,7 +227,86 @@ module.exports = grammar({
     /**
      * Patterns
      */
+    pattern: ($) => seq($.pattern_list, ";"),
+
+    pattern_list: ($) =>
+      choice(
+        $.pattern_sequence,
+        $.property_list_pattern,
+        $.pattern_sequence,
+        ",",
+        $.pattern_list,
+      ),
+
+    pattern_sequence: ($) => repeat($.simple_pattern),
+
+    simple_pattern: ($) =>
+      seq(
+        $.name,
+        "=>",
+        $.bracketed_pattern,
+        $.binding_pattern,
+        $.pattern_variable,
+      ),
+
+    bracketed_pattern: ($) =>
+      choice(
+        seq("(", optional($.pattern), ")"),
+        seq("[", optional($.pattern), "]"),
+        seq("{", optional($.pattern), "}"),
+      ),
+
+    binding_pattern: ($) =>
+      choice(
+        seq($.pattern_variable, "::", $.pattern_variable),
+        seq($.pattern_variable, "=", $.pattern_variable),
+        seq(
+          $.pattern_variable,
+          "::",
+          $.pattern_variable,
+          "=",
+          $.pattern_variable,
+        ),
+      ),
+
+    property_list_pattern: ($) =>
+      choice(
+        seq("#rest", $.pattern_variable),
+        seq("#key", optional($.pattern_keywords)),
+        seq(
+          seq("#rest", $.pattern_variable),
+          ",",
+          seq("#key", $.pattern_variable),
+        ),
+      ),
+
+    pattern_keywords: ($) =>
+      choice(
+        "#all-keys",
+        $.pattern_keyword,
+        seq($.pattern_keyword, ",", $.pattern_keywords),
+      ),
+
+    pattern_keyword: ($) =>
+      choice(
+        seq("?", $.name, optional("default")),
+        seq("?", $.constrained_name, optional("default")),
+        seq("??", $.name, optional("default")),
+      ),
+
     pattern_variable: ($) => seq(choice($._macro_name, $._identifier_text)),
+    // pattern-variable :: pattern-variable
+    //
+    // pattern-variable = pattern-variable
+    //
+    // pattern-variable :: pattern-variable = pattern-variable
+    //
+    // pattern-variable:
+    // ? name
+    //
+    // ? constrained-name
+    //
+    // ...
 
     identifier: ($) => choice($._str_identifier, $._identifier_text),
     _str_identifier: ($) =>
@@ -260,7 +364,7 @@ module.exports = grammar({
     /**
      * Auxiliary Rule Sets
      */
-    aux_rule_sets: ($) => repeat($aux - rule - set),
+    aux_rule_sets: ($) => repeat($.aux_rule_set),
 
     aux_rule_set: ($) => seq($.symbol, $.aux_rules),
 
@@ -277,14 +381,16 @@ module.exports = grammar({
     /**
      * taken from tree-sitter tutorial
      */
-    function_definition: ($) =>
-      seq(
-        "func",
-        field("name", $.identifier),
-        field("parameters", $.parameter_list),
-        field("return_type", $._type),
-        field("body", $.block),
-      ),
+    // function_definition: ($) =>
+    //   seq(
+    //     "func",
+    //     field("name", $.identifier),
+    //     field("parameters", $.parameter_list),
+    //     field("return_type", $._type),
+    //     field("body", $.block),
+    //   ),
+
+    // block: (_) => seq("this is not defined"),
 
     _expression: ($) =>
       choice(
@@ -297,6 +403,7 @@ module.exports = grammar({
         // operand . variable-name
       ),
 
+    unary_operator: ($) => choice("-", "!"),
     unary_expression: ($) =>
       prec(
         2,
@@ -306,6 +413,7 @@ module.exports = grammar({
           // ...
         ),
       ),
+    _binary_operator: ($) => choice("*", "+", "/", "-"),
     binary_expression: ($) =>
       choice(
         prec.left(2, seq($._expression, "*", $._expression)),
@@ -343,6 +451,15 @@ module.exports = grammar({
 
     arguments: ($) => repeat(seq($.symbol, $.argument, optional(","))),
 
+    argument: ($) =>
+      choice(seq($.symbol, $._expression), $.expression_no_symbol, $.symbol),
+    expression_no_symbol: ($) =>
+      choice(
+        "binary-operand-no-symbol",
+        "binary-operand-no-symbol",
+        "binary-operator expression",
+      ),
+
     literal: ($) =>
       choice(
         $.number,
@@ -365,7 +482,15 @@ module.exports = grammar({
     property_name: ($) => $.identifier,
     parameter_name: ($) => $.identifier,
     macro_name: ($) => $.identifier,
+    _macro_name: ($) => $.identifier,
+    name: ($) => $.identifier,
+    constrained_name: ($) => $.identifier,
     identifier: ($) => /[a-z\-$\*]+/,
+    string: ($) => /[a-z\-$\*]+/,
+    escape_sequence: ($) => /[a-z\-$\*]+/,
+    symbol: ($) => /[a-z\-$\*]+/,
+    word: ($) => /[a-z\-$\*]+/,
+    _identifier_text: ($) => /[a-z\-$\*]+/,
 
     number: (_) => /\d+/,
 
@@ -385,5 +510,26 @@ module.exports = grammar({
     parsed_list_constant: (_) => /[a-z\-$\*]+/,
 
     parsed_vector_constant: (_) => /[a-z\-$\*]+/,
+
+    /**
+     * Lexical grammar
+     */
+    constant: ($) => choice($.literal, $.symbol),
+    function_word: (_) => "(none)",
+    hashtag_word: (_) =>
+      choice("#t", "#f", "#next", "#rest", "#key", "#all-keys", "#include"),
+    begin_word: (_) =>
+      choice(
+        "begin",
+        "block",
+        "case",
+        "for",
+        "if",
+        "method",
+        "select",
+        "unless",
+        "until",
+        "while",
+      ),
   },
 });
